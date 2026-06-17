@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아카데미 대시보드 - 501호</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+    <style>
+        :root {
+            /* 자바스크립트에서 브랜드에 따라 메인 컬러를 변경합니다 */
+            --brand-color: #E60012; 
+            
+            --bg-color: #ffffff;
+            --text-main: #111111;
+            --text-sub: #777777;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+
+        body {
+            background-color: #000; /* 디스플레이 밖 여백용 블랙 */
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* 16:10 비율 유지 컨테이너 */
+        #dashboard {
+            width: 100vw;
+            height: 62.5vw;
+            max-height: 100vh;
+            max-width: 160vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            overflow: hidden;
+            transition: background-color 0.8s ease;
+        }
+
+        .hidden { display: none !important; }
+
+        /* =========================================
+           1. 데이터가 없을 때: 미니멀한 빈 화면 
+           ========================================= */
+        #empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 1s ease;
+        }
+
+        .empty-text {
+            font-size: 3.5rem;
+            font-weight: 300;
+            color: #A0AEC0;
+            letter-spacing: -2px;
+        }
+
+        /* =========================================
+           2. 데이터가 있을 때: 세련된 과정 안내 화면
+           ========================================= */
+        #active-state {
+            width: 85%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 1s ease;
+        }
+
+        /* 로고 영역 */
+        .logo-container {
+            height: 120px;
+            margin-bottom: 50px;
+        }
+
+        .logo-container img {
+            height: 100%;
+            object-fit: contain;
+            transition: transform 0.5s ease;
+        }
+
+        /* 과정명 (가장 크게 강조) */
+        .course-title {
+            font-size: 6.5rem;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1.2;
+            word-break: keep-all;
+            margin-bottom: 60px;
+            letter-spacing: -2.5px;
+        }
+
+        /* 하단 메타 정보 (알약 형태의 깔끔한 디자인) */
+        .meta-info-pill {
+            display: inline-flex;
+            gap: 50px;
+            background: #F8F9FA;
+            padding: 25px 60px;
+            border-radius: 100px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+        }
+
+        .meta-item {
+            font-size: 1.6rem;
+            font-weight: 500;
+            color: var(--text-sub);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* 브랜드 컬러 포인트 */
+        .meta-item strong {
+            color: var(--brand-color);
+            font-weight: 700;
+            transition: color 0.5s ease;
+        }
+
+        /* 페이드인 애니메이션 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px); filter: blur(5px); }
+            to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="dashboard">
+        
+        <div id="empty-state" class="hidden">
+            <h2 class="empty-text">현재 진행중인 과정이 없습니다.</h2>
+        </div>
+
+        <div id="active-state" class="hidden">
+            <div class="logo-container">
+                <img id="brand-logo" src="logo.png" alt="브랜드 로고">
+            </div>
+            
+            <h1 id="course-title" class="course-title">과정명 로딩중...</h1>
+            
+            <div class="meta-info-pill">
+                <div class="meta-item">
+                    <strong>교육 기간</strong> <span id="course-period">-</span>
+                </div>
+                <div class="meta-item">
+                    <strong>교육 시간</strong> <span id="course-time">-</span>
+                </div>
+                <div class="meta-item">
+                    <strong>강의장</strong> <span>501호</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 이전에 주셨던 구글 시트 CSV 게시 링크
+        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vThSEdRPQ80O2WMC8E-ceES--tvUAIVPlIR4_gmRq2Uoix8CxKqU3WQSkh5O3bKPI4tU56jqMXPKQcn/pub?gid=1841070893&single=true&output=csv';
+
+        async function fetchSheetData() {
+            try {
+                const response = await fetch(SHEET_URL);
+                const data = await response.text();
+                
+                // 첫 번째 줄(헤더) 제외
+                const rows = data.split('\n').slice(1); 
+                
+                // 501호 데이터만 찾기
+                let activeCourse = null;
+
+                for (let i = 0; i < rows.length; i++) {
+                    const cols = rows[i].split(',');
+                    const room = cols[2]?.trim();
+                    
+                    if (room === '501호' && cols[0]?.trim() !== '') {
+                        activeCourse = {
+                            title: cols[0]?.trim(),     // A열: 과정명
+                            period: cols[1]?.trim(),    // B열: 교육기간
+                            time: cols[4]?.trim(),      // E열: 교육시간
+                            brand: cols[5]?.trim()      // F열: 브랜드
+                        };
+                        break; // 501호 데이터를 하나 찾으면 멈춤
+                    }
+                }
+
+                updateDashboard(activeCourse);
+
+            } catch (error) {
+                console.error('데이터 로드 오류:', error);
+            }
+        }
+
+        function updateDashboard(course) {
+            const emptyState = document.getElementById('empty-state');
+            const activeState = document.getElementById('active-state');
+            const root = document.documentElement;
+            const logoImg = document.getElementById('brand-logo');
+
+            // 1. 일치하는 값이 없을 때
+            if (!course) {
+                activeState.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            // 2. 일치하는 값이 있을 때
+            emptyState.classList.add('hidden');
+            activeState.classList.remove('hidden');
+
+            // 텍스트 업데이트
+            document.getElementById('course-title').innerText = course.title;
+            document.getElementById('course-period').innerText = course.period || '-';
+            document.getElementById('course-time').innerText = course.time || '-';
+
+            // 3. 브랜드에 따른 로고 및 컬러 변경
+            if (course.brand === '스탠브루') {
+                root.style.setProperty('--brand-color', '#4A5568'); // 스탠브루 컬러 예시
+                logoImg.src = 'logo_stanbru.png'; 
+            } else if (course.brand === '엔제리너스') {
+                root.style.setProperty('--brand-color', '#DD6B20'); // 엔제리너스 컬러 예시
+                logoImg.src = 'logo_angelinus.png';
+            } else {
+                root.style.setProperty('--brand-color', '#E60012'); // 기본 롯데 레드
+                logoImg.src = 'logo.png'; 
+            }
+        }
+
+        // 초기 로드 및 30초마다 갱신
+        fetchSheetData();
+        setInterval(fetchSheetData, 30000); 
+    </script>
+</body>
+</html>
