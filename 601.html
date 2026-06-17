@@ -154,7 +154,7 @@
                     // 강의장 호수 공백 모두 제거 (예: ' 601 호 ' -> '601호')
                     const room = cols[2] ? cols[2].replace(/\s+/g, '') : '';
                     
-                    if (room === '501호' && cols[0] !== '') {
+                    if (room === '601호' && cols[0] !== '') {
                         activeCourse = {
                             title: cols[0],
                             period: cols[1],
