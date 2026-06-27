@@ -120,7 +120,7 @@
             <div class="room-text">501호</div>
             
             <div class="course-title-wrap">
-                <h1 class="course-title" id="course-title">데이터 로딩중...</h1>
+                <h1 class="course-title" id="course-title">강의장 데이터 동기화 중...</h1>
             </div>
             
             <div class="period-pill" id="period-pill">
@@ -131,36 +131,95 @@
     </div>
 
     <script>
-        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vThSEdRPQ80O2WMC8E-ceES--tvUAIVPlIR4_gmRq2Uoix8CxKqU3WQSkh5O3bKPI4tU56jqMXPKQcn/pub?gid=1841070893&single=true&output=csv';
+        // ★ 관리자 대시보드 및 로비 키오스크와 연동 중인 동일한 통합 구글 시트 ID 지정
+        const SHEET_ID = '1T6gk3ediGcWimaS5EXVVxHnoqrW2aOdZJ5fGZVYVgLg';
+        const TARGET_ROOM = '501호';
+
+        // Gviz 날짜 데이터를 YYYY-MM-DD 형식의 문자열로 안전하게 파싱
+        function parseGvizDate(cell) {
+            if (!cell) return '';
+            if (cell.f) {
+                return String(cell.f).replace(/\./g, '-').replace(/\s/g, '').substring(0, 10);
+            }
+            if (cell.v) {
+                const val = String(cell.v);
+                if (val.startsWith('Date(')) {
+                    const match = val.match(/Date\((\d+),(\d+),(\d+)/);
+                    if (match) {
+                        const y = match[1];
+                        const m = String(parseInt(match[2]) + 1).padStart(2, '0');
+                        const d = String(match[3]).padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
+                }
+                return val.substring(0, 10);
+            }
+            return '';
+        }
+
+        // M월 D일(요일) 포맷으로 날짜 변환 헬퍼 함수
+        function formatToCustomDate(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length < 3) return dateStr;
+            const month = parseInt(parts[1], 10);
+            const day = parseInt(parts[2], 10);
+            const dateObj = new Date(dateStr);
+            const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][dateObj.getDay()];
+            return `${month}월 ${day}일(${dayOfWeek})`;
+        }
 
         async function fetchSheetData() {
             try {
-                // 브라우저 캐싱(과거 데이터 유지) 방지를 위해 URL 끝에 현재 시간 추가
-                const fetchUrl = SHEET_URL + '&t=' + new Date().getTime();
-                const response = await fetch(fetchUrl);
-                const data = await response.text();
-                const rows = data.split('\n').slice(1); 
+                // 브라우저 캐싱 방지를 위해 쿼리 URL 끝에 현재 타임스탬프 추가
+                const targetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=교육일정&t=${new Date().getTime()}`;
+                const response = await fetch(targetUrl);
+                const text = await response.text();
+                
+                // JSON 콜백 래퍼 파싱
+                const jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/)[1];
+                const data = JSON.parse(jsonStr);
+                const rows = data.table.rows;
+
+                // 타블렛 키오스크 조회 기준일(오늘 날짜: 2026-06-27) 생성
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const todayStr = `${y}-${m}-${d}`;
                 
                 let activeCourse = null;
 
-                for (let i = 0; i < rows.length; i++) {
-                    if (!rows[i].trim()) continue; // 빈 줄 무시
+                if (rows) {
+                    for (let i = 0; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row || !row.c) continue;
 
-                    // CSV 분리 (셀 안에 쉼표가 있을 경우 보호)
-                    const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => {
-                        return col ? col.replace(/^"|"$/g, '').trim() : ''; // 양끝 따옴표 제거
-                    });
+                        // 인덱스 기준: B(1) 과정명, C(2) 시작일, D(3) 종료일, G(6) 안내 층수, H(7) 배정 강의장, J(9) 브랜드 구분, K(10) 상태
+                        const title = row.c[1] ? (row.c[1].v || row.c[1].f) : '';
+                        const startDate = parseGvizDate(row.c[2]);
+                        const endDate = parseGvizDate(row.c[3]);
+                        const floorVal = row.c[6] ? (row.c[6].v || row.c[6].f) : '';
+                        const roomVal = row.c[7] ? (row.c[7].v || row.c[7].f) : '';
+                        const brand = row.c[9] ? (row.c[9].v || row.c[9].f) : '';
+                        const status = row.c[10] ? (row.c[10].v || row.c[10].f) : '';
 
-                    // 강의장 호수 공백 모두 제거 (예: ' 501 호 ' -> '501호')
-                    const room = cols[2] ? cols[2].replace(/\s+/g, '') : '';
-                    
-                    if (room === '501호' && cols[0] !== '') {
-                        activeCourse = {
-                            title: cols[0],
-                            period: cols[1],
-                            brand: cols[5] // 6가지 브랜드 구분값
-                        };
-                        break;
+                        // 강의장명 공백 제거 예외처리 (예: "501호" 조합)
+                        const fullRoom = String(floorVal).replace('층', 'F') + " " + String(roomVal);
+                        const cleanRoom = fullRoom.replace(/\s+/g, '');
+
+                        // ★ 예약 상태, 현재 501호 강의장 일치, 오늘 날짜가 교육 기간 내에 포함되는지 확인
+                        if (status === '예약' && cleanRoom.includes(TARGET_ROOM.replace(/\s+/g, '')) && startDate <= todayStr && todayStr <= endDate) {
+                            
+                            const displayPeriod = `${formatToCustomDate(startDate)} - ${formatToCustomDate(endDate)}`;
+                            
+                            activeCourse = {
+                                title: String(title),
+                                period: displayPeriod,
+                                brand: String(brand)
+                            };
+                            break;
+                        }
                     }
                 }
 
@@ -177,7 +236,7 @@
             const courseTitle = document.getElementById('course-title');
             const periodPill = document.getElementById('period-pill');
 
-            // 1. 매칭된 정보가 없을 때 (.png 파일 적용)
+            // 1. 매칭된 정보가 없을 때 (기본형 .png 파일 적용)
             if (!course) {
                 dashboard.style.backgroundImage = "url('bg_common.png')"; 
                 courseTitle.innerHTML = '현재 진행중인<br>강의가 없습니다'; 
@@ -207,14 +266,14 @@
                 case '플레이팅':
                     dashboard.style.backgroundImage = "url('bg_plating.png')";
                     break;
-                case '공통기타':
+                case '통합/기타':
                 default:
                     dashboard.style.backgroundImage = "url('bg_common.png')"; 
                     break;
             }
         }
 
-        // 초기 실행 및 30초마다 갱신
+        // 초기 실행 및 30초 단위 시트 동기화 갱신 설정
         fetchSheetData();
         setInterval(fetchSheetData, 30000); 
     </script>
