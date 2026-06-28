@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>아카데미 강의장 안내 - 501호</title>
+    <title>아카데미 강의장 안내 - 602호</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
     <style>
         :root {
@@ -117,7 +117,7 @@
 
     <div id="dashboard">
         <div id="active-state">
-            <div class="room-text">501호</div>
+            <div class="room-text">602호</div>
             
             <div class="course-title-wrap">
                 <h1 class="course-title" id="course-title">강의장 데이터 동기화 중...</h1>
@@ -133,7 +133,7 @@
     <script>
         // ★ 관리자 대시보드 및 로비 키오스크와 연동 중인 동일한 통합 구글 시트 ID 지정
         const SHEET_ID = '1T6gk3ediGcWimaS5EXVVxHnoqrW2aOdZJ5fGZVYVgLg';
-        const TARGET_ROOM = '501호';
+        const TARGET_ROOM = '602호';
 
         // Gviz 날짜 데이터를 YYYY-MM-DD 형식의 문자열로 안전하게 파싱
         function parseGvizDate(cell) {
@@ -204,11 +204,11 @@
                         const brand = row.c[9] ? (row.c[9].v || row.c[9].f) : '';
                         const status = row.c[10] ? (row.c[10].v || row.c[10].f) : '';
 
-                        // 강의장명 공백 제거 예외처리 (예: "501호" 조합)
+                        // 강의장명 공백 제거 예외처리 (예: "602호" 조합)
                         const fullRoom = String(floorVal).replace('층', 'F') + " " + String(roomVal);
                         const cleanRoom = fullRoom.replace(/\s+/g, '');
 
-                        // ★ 예약 상태, 현재 501호 강의장 일치, 오늘 날짜가 교육 기간 내에 포함되는지 확인
+                        // ★ 예약 상태, 현재 602호 강의장 일치, 오늘 날짜가 교육 기간 내에 포함되는지 확인
                         if (status === '예약' && cleanRoom.includes(TARGET_ROOM.replace(/\s+/g, '')) && startDate <= todayStr && todayStr <= endDate) {
                             
                             const displayPeriod = `${formatToCustomDate(startDate)} - ${formatToCustomDate(endDate)}`;
